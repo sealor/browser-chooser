@@ -1,14 +1,17 @@
 use iced::{
-    executor, theme,
+    executor,
+    subscription::events_with,
+    theme,
     widget::{Button, Column, Container},
-    window, Application, Color, Command, Element, Length, Settings, Theme,
+    window, Application, Color, Command, Element, Event, Length, Settings, Subscription, Theme,
 };
-use std::process::{self, exit};
+use std::{env, process};
 
 fn main() -> Result<(), iced::Error> {
     let settings = Settings {
         window: window::Settings {
             size: (100, 60),
+            decorations: false,
             ..window::Settings::default()
         },
         default_text_size: 12.0,
@@ -24,11 +27,13 @@ struct Browser {
 
 struct BrowserList {
     list: Vec<Browser>,
+    initially_focused: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Action {
     Open(String),
+    HandleWindowEvent(window::Event),
     Cancel,
 }
 
@@ -51,6 +56,7 @@ impl Application for BrowserList {
                         command: "chrome".to_string(),
                     },
                 ],
+                initially_focused: false,
             },
             Command::none(),
         )
@@ -61,10 +67,25 @@ impl Application for BrowserList {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
-        if let Action::Open(cmd) = message {
-            process::Command::new(cmd).spawn().ok();
-        };
-        exit(0);
+        match message {
+            Action::Open(cmd) => {
+                process::Command::new(cmd).args(env::args()).spawn().ok();
+                window::close()
+            }
+            Action::HandleWindowEvent(window::Event::Focused) => {
+                self.initially_focused = true;
+                Command::none()
+            }
+            Action::HandleWindowEvent(window::Event::Unfocused) => {
+                if self.initially_focused {
+                    window::close()
+                } else {
+                    Command::none()
+                }
+            }
+            Action::Cancel => window::close(),
+            _ => Command::none(),
+        }
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
@@ -88,6 +109,13 @@ impl Application for BrowserList {
         column = column.push(button);
 
         Container::new(column).into()
+    }
+
+    fn subscription(&self) -> Subscription<Self::Message> {
+        events_with(|event, _| match event {
+            Event::Window(window_event) => Some(Action::HandleWindowEvent(window_event)),
+            _ => None,
+        })
     }
 
     fn theme(&self) -> Theme {
