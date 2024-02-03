@@ -1,9 +1,9 @@
 use iced::{
-    theme,
+    executor, theme,
     widget::{Button, Column, Container},
-    window, Color, Element, Length, Sandbox, Settings, Theme,
+    window, Application, Color, Command, Element, Length, Settings, Theme,
 };
-use std::process::{exit, Command};
+use std::process::{self, exit};
 
 fn main() -> Result<(), iced::Error> {
     let settings = Settings {
@@ -32,31 +32,37 @@ enum Action {
     Cancel,
 }
 
-impl Sandbox for BrowserList {
+impl Application for BrowserList {
     type Message = Action;
+    type Executor = executor::Default;
+    type Theme = Theme;
+    type Flags = ();
 
-    fn new() -> Self {
-        Self {
-            list: vec![
-                Browser {
-                    title: "Chrome".to_string(),
-                    command: "chromium".to_string(),
-                },
-                Browser {
-                    title: "Firefox".to_string(),
-                    command: "firefox".to_string(),
-                },
-            ],
-        }
+    fn new(_flags: ()) -> (BrowserList, Command<Self::Message>) {
+        (
+            Self {
+                list: vec![
+                    Browser {
+                        title: "Mozilla Firefox".to_string(),
+                        command: "firefox".to_string(),
+                    },
+                    Browser {
+                        title: "Google Chrome".to_string(),
+                        command: "chrome".to_string(),
+                    },
+                ],
+            },
+            Command::none(),
+        )
     }
 
     fn title(&self) -> String {
         "Browser Chooser".to_string()
     }
 
-    fn update(&mut self, message: Self::Message) {
+    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         if let Action::Open(cmd) = message {
-            Command::new(cmd).spawn().ok();
+            process::Command::new(cmd).spawn().ok();
         };
         exit(0);
     }
