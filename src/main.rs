@@ -1,9 +1,10 @@
 use iced::{
-    executor,
+    executor, mouse,
     subscription::events_with,
     theme,
     widget::{Button, Column, Container},
-    window, Application, Color, Command, Element, Event, Length, Settings, Subscription, Theme,
+    window::{self},
+    Application, Color, Command, Element, Event, Length, Point, Settings, Subscription, Theme,
 };
 use std::{env, process};
 
@@ -25,15 +26,24 @@ struct Browser {
     command: String,
 }
 
+struct Position {
+    x: i32,
+    y: i32,
+}
+
 struct BrowserList {
     list: Vec<Browser>,
     initially_focused: bool,
+
+    initial_window_position: Option<Position>,
+    initial_cursor_vector: Option<Point>,
 }
 
 #[derive(Debug, Clone)]
 enum Action {
     Open(String),
     HandleWindowEvent(window::Event),
+    HandleMouseEvent(mouse::Event),
     Cancel,
 }
 
@@ -57,6 +67,8 @@ impl Application for BrowserList {
                     },
                 ],
                 initially_focused: false,
+                initial_window_position: None,
+                initial_cursor_vector: None,
             },
             Command::none(),
         )
@@ -82,6 +94,26 @@ impl Application for BrowserList {
                 } else {
                     Command::none()
                 }
+            }
+            Action::HandleWindowEvent(window::Event::Moved { x, y }) => {
+                if self.initial_window_position.is_none() {
+                    self.initial_window_position = Some(Position { x, y });
+                }
+                Command::none()
+            }
+            Action::HandleMouseEvent(mouse::Event::CursorMoved { position: vector }) => {
+                if self.initial_cursor_vector.is_none() {
+                    self.initial_cursor_vector = Some(vector);
+
+                    // Move window to cursor position after initial position and cursor vector is known
+                    if let Some(position) = self.initial_window_position.as_ref() {
+                        return window::move_to(
+                            vector.x as i32 + position.x + 1,
+                            vector.y as i32 + position.y + 1,
+                        );
+                    }
+                }
+                Command::none()
             }
             Action::Cancel => window::close(),
             _ => Command::none(),
@@ -112,9 +144,13 @@ impl Application for BrowserList {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        events_with(|event, _| match event {
-            Event::Window(window_event) => Some(Action::HandleWindowEvent(window_event)),
-            _ => None,
+        events_with(|event, _| {
+            eprintln!("{:?}", event);
+            match event {
+                Event::Window(window_event) => Some(Action::HandleWindowEvent(window_event)),
+                Event::Mouse(mouse_event) => Some(Action::HandleMouseEvent(mouse_event)),
+                _ => None,
+            }
         })
     }
 
